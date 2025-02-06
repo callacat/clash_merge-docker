@@ -66,7 +66,7 @@ def main():
         
         # 设置超时时间为3秒
         gist_resp = requests.patch(
-            f"https://api.github.com/gists/{config.GIST_ID}",
+            f"https://ghapi.dsdog.tk/gists/{config.GIST_ID}",
             headers=headers,
             json=payload,
             timeout=3
