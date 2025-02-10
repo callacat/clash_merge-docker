@@ -6,7 +6,7 @@ import datetime
 def main():
     print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # 1. 读取订阅链接文件
-   try:
+    try:
         with open(config.SOURCE_FILE, "r") as f:
             links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
             if not links:
