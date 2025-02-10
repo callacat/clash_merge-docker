@@ -1,12 +1,14 @@
 import urllib.parse
 import requests
 import config
+import datetime
 
 def main():
+    print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     # 1. 读取订阅链接文件
-    try:
+   try:
         with open(config.SOURCE_FILE, "r") as f:
-            links = [line.strip() for line in f if line.strip()]
+            links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
             if not links:
                 print("警告：源文件为空")
                 return
@@ -79,6 +81,8 @@ def main():
         print(f"Gist更新失败: {str(e)}")
     except Exception as e:
         print(f"意外错误：{str(e)}")
+
+    print("程序运行结束:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 if __name__ == "__main__":
     main()
