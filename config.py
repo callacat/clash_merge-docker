@@ -1,6 +1,9 @@
 # 订阅链接文件路径
 SOURCE_FILE = "/app/links.txt"
 
+# 远程订阅链接网址
+REMOTE_SOURCE_URL = ""
+
 # 订阅转换服务基础地址
 BASE_URL = "https://sub.dsdog.tk/sub"
 

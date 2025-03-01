@@ -5,47 +5,71 @@ import datetime
 
 def main():
     print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    # 1. 读取订阅链接文件
-    try:
-        with open(config.SOURCE_FILE, "r") as f:
-            links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    links = []
+    source_type = "file" # 默认从文件读取
+
+    # 1. 尝试从远程链接读取订阅
+    if hasattr(config, 'REMOTE_SOURCE_URL') and config.REMOTE_SOURCE_URL:
+        source_type = "remote"
+        print(f"尝试从远程链接读取订阅: {config.REMOTE_SOURCE_URL}")
+        try:
+            resp = requests.get(config.REMOTE_SOURCE_URL, timeout=(3, 30))
+            resp.raise_for_status()
+            links = [line.strip() for line in resp.text.splitlines() if line.strip() and not line.startswith('#')]
             if not links:
-                print("警告：源文件为空")
-                return
-    except FileNotFoundError:
-        print(f"错误：找不到源文件 {config.SOURCE_FILE}")
-        return
-    except IOError as e:
-        print(f"错误：读取源文件时出错：{str(e)}")
+                print("警告：远程订阅链接内容为空，尝试从本地文件读取")
+                source_type = "file" # 远程链接为空，回退到本地文件
+        except requests.exceptions.RequestException as e:
+            print(f"错误：读取远程订阅链接失败: {str(e)}，尝试从本地文件读取")
+            source_type = "file" # 读取远程链接失败，回退到本地文件
+
+    # 2. 从本地文件读取订阅 (当远程读取失败或未配置远程链接时)
+    if source_type == "file":
+        print(f"尝试从本地文件读取订阅: {config.SOURCE_FILE}")
+        try:
+            with open(config.SOURCE_FILE, "r") as f:
+                links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                if not links:
+                    print("警告：源文件为空")
+                    return # 本地文件为空，程序终止
+        except FileNotFoundError:
+            print(f"错误：找不到源文件 {config.SOURCE_FILE}")
+            return # 本地文件未找到，程序终止
+        except IOError as e:
+            print(f"错误：读取源文件时出错：{str(e)}")
+            return # 本地文件IO错误，程序终止
+
+    if not links: # 再次检查 links 是否为空，防止远程和本地都为空的情况
+        print("错误：未能获取任何订阅链接，程序终止")
         return
 
-    # 2. 处理URL参数编码
+    # 3. 处理URL参数编码 (后续步骤与原代码相同)
     try:
         encoded_links = [
-            urllib.parse.quote(link, safe="")  # 编码单个链接
+            urllib.parse.quote(link, safe="")
             for link in links
         ]
-        url_param = "|".join(encoded_links)    # 用|连接编码后的链接
+        url_param = "|".join(encoded_links)
     except Exception as e:
         print(f"URL编码失败: {str(e)}")
         return
 
-    # 3. 构建最终请求URL
+    # 4. 构建最终请求URL
     try:
-        final_params = {**config.PARAMS, "url": url_param}  # 合并参数
+        final_params = {**config.PARAMS, "url": url_param}
         query = urllib.parse.urlencode(
             final_params,
-            safe="%",                      # 保留已编码的%
-            quote_via=urllib.parse.quote   # 使用标准编码方式
+            safe="%",
+            quote_via=urllib.parse.quote
         )
         final_url = f"{config.BASE_URL}?{query}"
     except Exception as e:
         print(f"构建请求URL失败: {str(e)}")
         return
 
-    # 4. 获取合并后的订阅内容
+    # 5. 获取合并后的订阅内容
     try:
-        resp = requests.get(final_url, timeout=(3, 30))  # 连接超时3秒，读取超时30秒
+        resp = requests.get(final_url, timeout=(3, 30))
         resp.raise_for_status()
     except requests.exceptions.Timeout as e:
         print(f"错误：请求超时：{str(e)}")
@@ -54,7 +78,7 @@ def main():
         print(f"获取订阅失败: {str(e)}")
         return
 
-    # 5. 上传到GitHub Gist
+    # 6. 上传到GitHub Gist
     try:
         headers = {
             "Authorization": f"token {config.GIST_TOKEN}",
@@ -65,8 +89,7 @@ def main():
                 config.GIST_FILENAME: {"content": resp.text}
             }
         }
-        
-        # 设置超时时间为3秒
+
         gist_resp = requests.patch(
             f"https://ghapi.dsdog.tk/gists/{config.GIST_ID}",
             headers=headers,
