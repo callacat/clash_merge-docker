@@ -2,12 +2,13 @@ import urllib.parse
 import requests
 import datetime
 import os
-import time # 虽然不再用于定时等待，但其他地方可能用到
+import time
 from flask import Flask, Response
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import atexit
-import sys # 用于捕获标准输出和标准错误
+import sys
+from io import StringIO # 从 io 模块导入 StringIO
 
 # 创建 Flask 应用实例
 app = Flask(__name__)
@@ -24,7 +25,7 @@ def main_logic():
     status: True for success, False for failure
     message: A string describing the result or error
     """
-    print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%m-%d %H:%M:%S")) # Adjusted format slightly
 
     # 从环境变量读取配置参数，并设置默认值
     SOURCE_FILE = os.environ.get("SOURCE_FILE", "/app/links.txt")
@@ -202,7 +203,9 @@ def trigger_run():
     # Redirect stdout and stderr to capture output
     old_stdout = sys.stdout
     old_stderr = sys.stderr
-    redirected_output = sys.stdout = sys.stderr = sys.StringIO()
+    redirected_output = StringIO() # 将 sys.StringIO() 改为 StringIO()
+    sys.stdout = redirected_output
+    sys.stderr = redirected_output
 
     try:
         # Trigger the main_logic and get the result
@@ -279,10 +282,6 @@ if __name__ == "__main__":
         print("未设置 CRON_SCHEDULE 环境变量，不启用定时任务。")
 
     # 运行 Flask Web 服务器
-    # 监听所有网络接口 (0.0.0.0)，端口默认为 8080
-    # 您可以通过设置 FLASK_RUN_PORT 环境变量来指定端口 (Flask 2.2+)
-    # 或者直接在这里修改 app.run 的 port 参数
     web_port = int(os.environ.get("WEB_PORT", 8080))
     print(f"启动 Web API 服务，监听端口 {web_port}。访问 /run 触发手动运行。")
-    # Flask 默认只监听 127.0.0.1，在 Docker 中需要监听 0.0.0.0
     app.run(host='0.0.0.0', port=web_port)
