@@ -1,19 +1,41 @@
 import urllib.parse
 import requests
-import config
 import datetime
+import os
 
 def main():
     print("程序开始运行:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    # 从环境变量读取配置参数，并设置默认值
+    SOURCE_FILE = os.environ.get("SOURCE_FILE", "/app/links.txt")
+    REMOTE_SOURCE_URL = os.environ.get("REMOTE_SOURCE_URL", "")
+    BASE_URL = os.environ.get("BASE_URL", "https://sub.dsdog.tk/sub")
+    GIST_ID = os.environ.get("GIST_ID", "YOUR_GIST_ID")
+    GIST_TOKEN = os.environ.get("GIST_TOKEN", "YOUR_GITHUB_TOKEN")
+    GIST_FILENAME = os.environ.get("GIST_FILENAME", "merged_sub.txt")
+
+    # 从环境变量读取 PARAMS 字典的各个参数，并设置默认值
+    PARAMS = {
+        "target": os.environ.get("PARAMS_TARGET", "clash"),
+        "exclude": os.environ.get("PARAMS_EXCLUDE", "剩余|订阅|好友|线路|套餐|官网|机场|过期|去除|地址|群|通知|限制"),
+        "emoji": os.environ.get("PARAMS_EMOJI", "true"),
+        "udp": os.environ.get("PARAMS_UDP", "true"),
+        "sort": os.environ.get("PARAMS_SORT", "false"),
+        "scv": os.environ.get("PARAMS_SCV", "false"),
+        "list": os.environ.get("PARAMS_LIST", "true")
+    }
+
     links = []
     source_type = "file" # 默认从文件读取
 
     # 1. 尝试从远程链接读取订阅
-    if hasattr(config, 'REMOTE_SOURCE_URL') and config.REMOTE_SOURCE_URL:
+    # 使用读取到的 REMOTE_SOURCE_URL 变量
+    if REMOTE_SOURCE_URL:
         source_type = "remote"
-        print(f"尝试从远程链接读取订阅: {config.REMOTE_SOURCE_URL}")
+        print(f"尝试从远程链接读取订阅: {REMOTE_SOURCE_URL}")
         try:
-            resp = requests.get(config.REMOTE_SOURCE_URL, timeout=(3, 30))
+            # 使用读取到的 REMOTE_SOURCE_URL 变量
+            resp = requests.get(REMOTE_SOURCE_URL, timeout=(3, 30))
             resp.raise_for_status()
             links = [line.strip() for line in resp.text.splitlines() if line.strip() and not line.startswith('#')]
             if not links:
@@ -25,15 +47,18 @@ def main():
 
     # 2. 从本地文件读取订阅 (当远程读取失败或未配置远程链接时)
     if source_type == "file":
-        print(f"尝试从本地文件读取订阅: {config.SOURCE_FILE}")
+        # 使用读取到的 SOURCE_FILE 变量
+        print(f"尝试从本地文件读取订阅: {SOURCE_FILE}")
         try:
-            with open(config.SOURCE_FILE, "r") as f:
+            # 使用读取到的 SOURCE_FILE 变量
+            with open(SOURCE_FILE, "r") as f:
                 links = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                 if not links:
                     print("警告：源文件为空")
                     return # 本地文件为空，程序终止
         except FileNotFoundError:
-            print(f"错误：找不到源文件 {config.SOURCE_FILE}")
+            # 使用读取到的 SOURCE_FILE 变量
+            print(f"错误：找不到源文件 {SOURCE_FILE}")
             return # 本地文件未找到，程序终止
         except IOError as e:
             print(f"错误：读取源文件时出错：{str(e)}")
@@ -56,13 +81,15 @@ def main():
 
     # 4. 构建最终请求URL
     try:
-        final_params = {**config.PARAMS, "url": url_param}
+        # 使用读取到的 PARAMS 字典
+        final_params = {**PARAMS, "url": url_param}
         query = urllib.parse.urlencode(
             final_params,
             safe="%",
             quote_via=urllib.parse.quote
         )
-        final_url = f"{config.BASE_URL}?{query}"
+        # 使用读取到的 BASE_URL 变量
+        final_url = f"{BASE_URL}?{query}"
     except Exception as e:
         print(f"构建请求URL失败: {str(e)}")
         return
@@ -79,31 +106,39 @@ def main():
         return
 
     # 6. 上传到GitHub Gist
-    try:
-        headers = {
-            "Authorization": f"token {config.GIST_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        payload = {
-            "files": {
-                config.GIST_FILENAME: {"content": resp.text}
+    # 仅在 GIST_ID 和 GIST_TOKEN 都已设置（非默认的 YOUR_GIST_ID 或 YOUR_GITHUB_TOKEN）时尝试上传
+    if GIST_ID != "YOUR_GIST_ID" and GIST_TOKEN != "YOUR_GITHUB_TOKEN":
+        try:
+            headers = {
+                # 使用读取到的 GIST_TOKEN 变量
+                "Authorization": f"token {GIST_TOKEN}",
+                "Accept": "application/vnd.github.v3+json"
             }
-        }
+            payload = {
+                "files": {
+                    # 使用读取到的 GIST_FILENAME 变量
+                    GIST_FILENAME: {"content": resp.text}
+                }
+            }
 
-        gist_resp = requests.patch(
-            f"https://ghapi.dsdog.tk/gists/{config.GIST_ID}",
-            headers=headers,
-            json=payload,
-            timeout=3
-        )
-        gist_resp.raise_for_status()
-        print(f"成功更新Gist：{gist_resp.json()['html_url']}")
-    except requests.exceptions.Timeout as e:
-        print(f"错误：Gist上传超时：{str(e)}")
-    except requests.exceptions.RequestException as e:
-        print(f"Gist更新失败: {str(e)}")
-    except Exception as e:
-        print(f"意外错误：{str(e)}")
+            # 使用读取到的 GIST_ID 变量
+            gist_resp = requests.patch(
+                f"https://api.github.com/gists/{GIST_ID}",
+                headers=headers,
+                json=payload,
+                timeout=3
+            )
+            gist_resp.raise_for_status()
+            print(f"成功更新Gist：{gist_resp.json()['html_url']}")
+        except requests.exceptions.Timeout as e:
+            print(f"错误：Gist上传超时：{str(e)}")
+        except requests.exceptions.RequestException as e:
+            print(f"Gist更新失败: {str(e)}")
+        except Exception as e:
+            print(f"意外错误：{str(e)}")
+    else:
+        print("未配置 Gist ID 或 Token，跳过上传 Gist 步骤。")
+
 
     print("程序运行结束:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
